@@ -15,7 +15,7 @@ export default function CreateAccountPage() {
       <div className="flex w-full items-center justify-center">
         <div className="flex w-full max-w-[440px] flex-col items-stretch">
           <div className="mb-6 text-center">
-            <h1 className="mb-1.5 text-[2.15rem] font-extrabold leading-tight tracking-tight text-neutral-500">
+            <h1 className="mb-1.5 text-[2.15rem] font-display leading-tight tracking-tight text-neutral-500">
               Create Account
             </h1>
             <p className="text-[0.95rem] font-normal text-neutral-300">

@@ -4,7 +4,11 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // The app connects as a non-owner role so the RLS policies on `briefs` and
+  // `brief_assets` actually apply to it. See ADMIN_DATABASE_URL in .env.
+  url = env("DATABASE_URL")
+  // Migrations and Prisma Studio use the owner role, which is exempt from RLS.
+  directUrl = env("ADMIN_DATABASE_URL")
 }
 
 /// One registered user. email is globally unique so two accounts can never
@@ -25,6 +29,83 @@ model User {
   sessions               Session[]
   emailVerificationTokens EmailVerificationToken[]
   passwordResetTokens    PasswordResetToken[]
+  briefs                 Brief[]
+  briefAssets            BriefAsset[]
+  auditLogs              AuditLog[]
+}
+
+/// Processing state of a brief. This is a property OF the record, never a gate
+/// on whether the record can be read, edited or deleted — every CRUD path in
+/// the application is ownership-scoped and completely status-agnostic.
+
+/// A brief uploaded by a user, plus (optionally) the structured outline the AI
+/// produced from it.
+///
+/// Access control is enforced twice, independently:
+///  1. Application layer: every query in src/lib/briefs/service.ts carries an
+///     explicit `userId` filter in its WHERE clause.
+///  2. Database layer: RLS policies on this table (see the briefs_rls
+///     migration) tie every row to `app.current_user_id`, which the app sets
+///     per request. FORCE ROW LEVEL SECURITY is required because the app
+///     connects as the table owner, who would otherwise bypass RLS entirely.
+///
+/// There is deliberately no `deletedAt`: deletes are hard deletes.
+model Brief {
+  id       String @id @default(cuid())
+  publicId String @unique @default(dbgenerated("(gen_random_uuid())::text"))
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([userId, title])
+
+  assets            BriefAsset[]
+
+  @@map("briefs")
+}
+
+/// A file attached to a brief (PDF, JPG or PNG).
+///
+/// Same two-layer ownership enforcement as Brief: every query filters on
+/// `userId`, and the `brief_assets_owner_isolation` RLS policy backs it up at
+/// the database. `userId` is denormalised onto the asset precisely so an asset
+/// can be authorised without first joining through to its brief — otherwise a
+/// lookup by asset id alone would be a cross-user read waiting to happen.
+///
+/// `storageKey` is server-generated (`<userId>/<assetPublicId>`) and never
+/// contains any user-supplied text, so a hostile filename cannot influence an
+/// object path. The original name is kept in `fileName` for display only.
+model BriefAsset {
+  id        String @id @default(cuid())
+  publicId  String @unique @default(dbgenerated("(gen_random_uuid())::text"))
+  briefId   String
+  brief     Brief  @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  fileName      String
+  contentType   String
+  fileSizeBytes Int
+  storageKey    String   @unique
+
+  /// The file body itself, stored in Postgres.
+  ///
+  /// Nullable only so the migration could not fail against a database that
+  /// already held rows written when bytes lived in object storage. Every read
+  /// path treats NULL as "no bytes" and answers 404, and every new row writes
+  /// its bytes in the same INSERT as its metadata, so this is never partial.
+  content Bytes?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([briefId])
+  @@map("brief_assets")
 }
 
 /// A server-side session row. The browser only ever holds a random id that
@@ -68,4 +149,24 @@ model PasswordResetToken {
   createdAt DateTime  @default(now())
 
   @@index([userId])
+}
+
+/// A client record owned by a user.
+/// `id` is internal primary key (never exposed to browser or URL).
+/// `publicId` is the random external identifier used in client responses and URLs.
+
+/// Append-only audit log for actions such as soft deletes.
+/// No update or delete path in the code.
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action     String
+  entityType String
+  entityId   String
+  snapshot   Json
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
 }

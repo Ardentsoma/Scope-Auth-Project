@@ -1,7 +1,7 @@
 import "server-only";
 
 import { cookies } from "next/headers";
-import { prisma } from "@/lib/prisma";
+import { ensureAppDatabaseRole, prisma } from "@/lib/prisma";
 import type { User } from "@prisma/client";
 import {
   SESSION_COOKIE,
@@ -34,6 +34,11 @@ export async function createSignedSession(userId: string): Promise<{
 
 /** Reads the current signed-in user from the session cookie + DB (or null). */
 export async function getSessionUser(): Promise<User | null> {
+  // Every protected request authenticates before it does anything else, so this
+  // is where the database role check runs. A privileged connection throws here
+  // and the request fails, rather than serving another user's data.
+  await ensureAppDatabaseRole();
+
   const store = await cookies();
   const value = store.get(SESSION_COOKIE)?.value;
   if (!value) return null;

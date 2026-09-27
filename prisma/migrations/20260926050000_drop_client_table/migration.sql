@@ -1,0 +1,12 @@
+-- Remove the Client table.
+--
+-- The clients feature is gone: briefs are the only thing this slice manages,
+-- and a client record was never referenced by a brief. Nothing else in the
+-- schema points at this table (the only inbound foreign key was the
+-- `User.clients` relation, which is removed in the same change), so the drop
+-- is clean and needs no cascade of dependent objects.
+--
+-- The table was never covered by row-level security: it predates the briefs
+-- access-control work and relies on application-layer filtering only. Dropping
+-- it also removes the last table in the app for which that was true.
+DROP TABLE IF EXISTS "Client";

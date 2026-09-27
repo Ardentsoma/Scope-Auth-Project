@@ -4,14 +4,6 @@ import {
   verifySessionCookie,
 } from "@/lib/auth/session-cookie";
 
-const AUTH_ROUTES = [
-  "/signin",
-  "/create-account",
-  "/forgot-password",
-  "/reset-password",
-  "/verify-email",
-];
-
 export async function proxy(request: NextRequest) {
   const secret = process.env.AUTH_SECRET;
   const response = NextResponse.next({ request });
@@ -26,12 +18,6 @@ export async function proxy(request: NextRequest) {
   const session = cookie ? await verifySessionCookie(cookie, secret) : null;
   const loggedIn = Boolean(session);
   const { pathname } = request.nextUrl;
-
-  if (loggedIn && AUTH_ROUTES.includes(pathname)) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
-  }
 
   if (!loggedIn && pathname.startsWith("/dashboard")) {
     const url = request.nextUrl.clone();

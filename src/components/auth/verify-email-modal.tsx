@@ -81,6 +81,24 @@ export default function VerifyEmailModal() {
       });
       const data = await res.json().catch(() => ({}));
 
+      if (res.status === 429) {
+        showToast(data.error ?? "Please wait before trying again.", "error");
+        setLoading(false);
+        return;
+      }
+
+      if (data.alreadyVerified) {
+        showToast(
+          "This email is already verified. Please sign in.",
+          "info"
+        );
+        actions.clearPendingEmail();
+        actions.clearSignup();
+        actions.closeModal();
+        router.push("/signin");
+        return;
+      }
+
       if (!res.ok) {
         setErrors(data.errors ?? {});
         showToast(data.error ?? "Unable to verify that code.", "error");

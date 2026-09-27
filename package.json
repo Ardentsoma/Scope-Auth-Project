@@ -7,8 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "test:briefs": "node --env-file=.env scripts/test-briefs-slice.mjs",
+    "test:assets": "node --env-file=.env scripts/test-brief-assets.mjs",
+    "test:role": "node --env-file=.env scripts/test-db-role.mjs",
+    "inspect": "node --env-file=.env scripts/inspect-briefs.mjs",
     "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio",
+    "db:studio": "sh -c 'set -a; . ./.env; set +a; DATABASE_URL=\"$ADMIN_DATABASE_URL\" prisma studio'",
     "email:test": "node --env-file=.env scripts/test-smtp.mjs",
     "postinstall": "prisma generate"
   },

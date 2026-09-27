@@ -82,6 +82,14 @@ export const RATE_LIMITS = {
   signup: { capacity: 5, refillPerSecond: 5 / 60 }, //  5 / min  per IP+email
   resetRequest: { capacity: 3, refillPerSecond: 3 / 3600 }, // 3 / hour per IP+email
   resend: { capacity: 5, refillPerSecond: 5 / 600 }, //  5 / 10min per IP+email
+  verify: { capacity: 5, refillPerSecond: 5 / 60 }, //  5 / min  per IP+email
+  // Processing a brief calls a paid AI provider, so it gets its own (tighter)
+  // budget rather than sharing the generic per-IP bucket.
+  process: { capacity: 10, refillPerSecond: 10 / 60 }, // 10 / min per IP
+  // File upload is cheap on CPU but unbounded in bandwidth and storage, and a
+  // request can carry up to 10 files, so it is budgeted separately rather than
+  // inheriting `process`'s allowance.
+  upload: { capacity: 20, refillPerSecond: 20 / 60 }, // 20 / min per IP
   ip: { capacity: 40, refillPerSecond: 40 / 60 }, // 40 / min  per IP (any endpoint)
 } satisfies Record<string, RateLimitConfig>;
 
@@ -95,7 +103,14 @@ export function clientIp(request: NextRequest): string {
   return request.headers.get("x-real-ip") ?? "local";
 }
 
-export type Endpoint = "signin" | "signup" | "resetRequest" | "resend";
+export type Endpoint =
+  | "signin"
+  | "signup"
+  | "resetRequest"
+  | "resend"
+  | "verify"
+  | "process"
+  | "upload";
 
 /**
  * Applies the endpoint budget (IP+email keyed) plus the shared per-IP bucket.

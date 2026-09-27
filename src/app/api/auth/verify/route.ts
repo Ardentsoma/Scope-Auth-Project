@@ -6,6 +6,7 @@ import {
   sessionCookieOptions,
 } from "@/lib/auth/session-cookie";
 import { hashToken, safeEqualHex } from "@/lib/auth/tokens";
+import { checkEndpointRateLimit } from "@/lib/rate-limit";
 import { fieldErrors, verifyEmailSchema } from "@/lib/validation/auth";
 import { isAuthConfigured } from "@/lib/auth/config";
 
@@ -25,6 +26,14 @@ export async function POST(request: NextRequest) {
 
   const { email, code } = parsed.data;
 
+  const limit = checkEndpointRateLimit(request, "verify", email);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: "Too many verification attempts. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfter) } }
+    );
+  }
+
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
     return NextResponse.json(
@@ -33,14 +42,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Never mint a session for an already-verified account. Minting one without
+  // proof of a valid code would let anyone with a known email take over the
+  // account (the submitted code was intentionally NOT verified on this path).
+  // The client routes these users to /signin where they authenticate normally.
   if (user.emailVerifiedAt) {
-    const { cookieValue } = await createSignedSession(user.id);
-    const response = NextResponse.json(
-      { verified: true, user: { fullName: user.fullName, email: user.email } },
-      { status: 200 }
-    );
-    response.cookies.set(SESSION_COOKIE, cookieValue, sessionCookieOptions());
-    return response;
+    return NextResponse.json({ alreadyVerified: true }, { status: 200 });
   }
 
   const token = await prisma.emailVerificationToken.findFirst({

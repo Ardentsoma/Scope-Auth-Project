@@ -61,7 +61,7 @@ export default function AuthModal({
 
         <h2
           id="auth-modal-title"
-          className="mb-1.5 text-center text-[1.4rem] font-extrabold leading-tight tracking-tight text-neutral-500"
+          className="mb-1.5 text-center text-[1.4rem] font-display leading-tight tracking-tight text-neutral-500"
         >
           {title}
         </h2>

@@ -1,0 +1,16 @@
+-- Store uploaded document bytes in Postgres instead of object storage.
+--
+-- `content` holds the validated file body. It is the whole file: the
+-- application already caps a request at 10 files x 20MB, so a single row is
+-- bounded well inside Postgres' 1GB field limit.
+--
+-- Nullable rather than NOT NULL so this migration cannot fail on a database
+-- that already holds asset rows written against the old object-storage
+-- backends. Every read path treats NULL as "no bytes stored" and answers 404,
+-- so a legacy row is inert rather than half-readable. New rows always carry
+-- their bytes in the same INSERT as their metadata.
+--
+-- `storageKey` is kept: it is the row's stable, unique key and is still
+-- filtered out of every client response. Nothing addresses storage by it now
+-- that the bytes are in-row.
+ALTER TABLE "brief_assets" ADD COLUMN "content" BYTEA;

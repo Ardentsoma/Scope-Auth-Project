@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { getSessionUser } from "@/lib/auth/session";
 import { isAuthConfigured } from "@/lib/auth/config";
-import SignOutButton from "./sign-out-button";
+import { listBriefs } from "@/lib/briefs/service";
+import { listAllAssets } from "@/lib/briefs/assets";
+import DashboardWorkspace from "@/components/dashboard/dashboard-workspace";
 
 export const metadata: Metadata = {
   title: "Dashboard | SCOPE",
@@ -10,44 +13,47 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+/**
+ * The dashboard is the app's main workspace: create a brief, paste its text,
+ * and attach PDF/JPG/PNG files to it. Both reads are owner-scoped inside the
+ * service layer, so this page can only ever render the signed-in user's own
+ * briefs and files.
+ *
+ * Files are loaded here rather than fetched from the client so the first paint
+ * needs no request and shows the right files immediately.
+ *
+ * `/dashboard` is also covered by the auth proxy in src/proxy.ts, which
+ * redirects unauthenticated visitors to /signin before this component runs.
+ */
 export default async function DashboardPage() {
   if (!isAuthConfigured()) {
     redirect("/signin");
   }
 
   const user = await getSessionUser();
-
-  // Server-side session check: no valid session (even a direct URL hit with
-  // no referrer) bounces straight back to /signin.
   if (!user) {
     redirect("/signin");
   }
 
+  const briefs = await listBriefs(user.id);
+  const assets = await listAllAssets(user.id);
   const displayName = user.fullName || user.email.split("@")[0] || "designer";
 
   return (
-    <main className="flex min-h-screen flex-col">
-      <header className="flex items-center justify-between border-b border-neutral-100 px-8 py-4">
-        <span className="relative inline-block text-xl font-extrabold leading-none tracking-[0.04em] text-neutral-500">
-          SCOPE
-          <span className="absolute -bottom-1 right-0 h-[3px] w-7 rounded-sm bg-red-500" />
-        </span>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-neutral-300">Welcome, {displayName}</span>
-          <SignOutButton />
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-[#fffefa]">
+          <div className="text-sm font-semibold text-neutral-300">
+            Loading your workspace...
+          </div>
         </div>
-      </header>
-
-      <section className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-        <h1 className="text-3xl font-extrabold tracking-tight text-neutral-500">
-          Your projects are on the way.
-        </h1>
-        <p className="max-w-md leading-relaxed text-neutral-300">
-          This is where clients, projects, and AI-generated project outlines
-          will live. The client and project workspace is the next screen to
-          build.
-        </p>
-      </section>
-    </main>
+      }
+    >
+      <DashboardWorkspace
+        initialBriefs={briefs}
+        initialAssets={assets}
+        displayName={displayName}
+      />
+    </Suspense>
   );
 }
