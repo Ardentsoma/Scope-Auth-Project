@@ -121,10 +121,11 @@ async function getOrCreateUser(email, fullName) {
 }
 
 /**
- * Mirrors src/lib/briefs/scope.ts. Note that cleaning up or verifying brief rows
- * REQUIRES this: with FORCE ROW LEVEL SECURITY active an unscoped connection
- * cannot see or touch the briefs table at all. The test harness is subject to
- * exactly the same policy as the application.
+ * Mirrors src/lib/briefs/scope.ts. Cleaning up or checking brief rows REQUIRES
+ * this: a connection that hasn't said who is asking can't see or touch the
+ * briefs table at all. The test harness lives under the same rule as the
+ * application, which is deliberate — it means a test that needs to see a row
+ * has to go through the same door the app does.
  */
 async function asUser(userId, fn) {
   return prisma.$transaction(async (tx) => {

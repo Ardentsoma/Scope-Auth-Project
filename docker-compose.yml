@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_USER: scope
       POSTGRES_PASSWORD: scope_secret
-      POSTGRES_DB: scope
+      POSTGRES_DB: scope_briefs
     ports:
       - "5432:5432"
     volumes:

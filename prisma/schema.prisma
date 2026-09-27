@@ -34,20 +34,24 @@ model User {
   auditLogs              AuditLog[]
 }
 
-/// Processing state of a brief. This is a property OF the record, never a gate
-/// on whether the record can be read, edited or deleted — every CRUD path in
-/// the application is ownership-scoped and completely status-agnostic.
-
-/// A brief uploaded by a user, plus (optionally) the structured outline the AI
-/// produced from it.
+/// A brief uploaded by a user: a title they chose, plus the documents they
+/// attached. Nothing is worked out or added automatically — there is no
+/// summary, no outline, no status.
 ///
-/// Access control is enforced twice, independently:
-///  1. Application layer: every query in src/lib/briefs/service.ts carries an
-///     explicit `userId` filter in its WHERE clause.
-///  2. Database layer: RLS policies on this table (see the briefs_rls
-///     migration) tie every row to `app.current_user_id`, which the app sets
-///     per request. FORCE ROW LEVEL SECURITY is required because the app
-///     connects as the table owner, who would otherwise bypass RLS entirely.
+/// Who is allowed to see a brief is checked twice, independently, so that one
+/// mistake on its own can't cause a leak:
+///  1. In the app: every question this slice asks about a brief also asks
+///     "whose is this?", in the same breath. See src/lib/briefs/service.ts.
+///  2. In the database: a rule on this table says a row can only be seen by
+///     whoever is currently asking, and the app says who that is at the start
+///     of each piece of work. See the briefs_rls migration.
+///
+/// The second one only works because the app signs in with a database account
+/// that owns nothing. Postgres lets whoever owns a table skip its own rules,
+/// so an app signed in as the owner would quietly ignore the rule above. The
+/// app checks it has the right account before serving anything — see
+/// src/lib/db-role.ts. Prisma Studio and migrations use the owner account on
+/// purpose, which is why they can see every brief.
 ///
 /// There is deliberately no `deletedAt`: deletes are hard deletes.
 model Brief {
@@ -151,12 +155,14 @@ model PasswordResetToken {
   @@index([userId])
 }
 
-/// A client record owned by a user.
-/// `id` is internal primary key (never exposed to browser or URL).
-/// `publicId` is the random external identifier used in client responses and URLs.
-
-/// Append-only audit log for actions such as soft deletes.
-/// No update or delete path in the code.
+/// A log of actions worth remembering later, kept in the database so it can't
+/// be quietly edited or deleted by the app — there is no update or delete
+/// path for it.
+///
+/// Nothing in the app writes to this table yet. It exists because a brand new
+/// database built from the migrations has to match the schema, and the
+/// reconcile_missing_objects migration creates it. Don't read anything into
+/// the empty table; there is no soft delete or admin trail in this slice.
 model AuditLog {
   id         String   @id @default(cuid())
   userId     String

@@ -28,13 +28,13 @@ returns 401 before touching the database.
 2. Run `npm install`.
 3. Start or create a PostgreSQL database with an **owner** role. The bundled
    `docker-compose.yml` does this: `docker compose up -d` creates the database
-   `scope` owned by the login `scope`.
+   `scope_briefs` owned by the login `scope`.
 4. Create the **application** role yourself. This step is deliberately not a
    migration, so that no password ever lands in version control:
 
    ```sql
    CREATE ROLE scope_app LOGIN PASSWORD '<generated>' NOSUPERUSER NOBYPASSRLS;
-   GRANT CONNECT ON DATABASE scope TO scope_app;
+   GRANT CONNECT ON DATABASE scope_briefs TO scope_app;
    ```
 
    Nothing else creates this role. If you skip it, the grant migration
@@ -70,6 +70,15 @@ example values rather than commented-out placeholders. It does **not**
 mention `DATABASE_APP_ROLE`; that override is read from the environment but
 has no entry in the example file. No real credentials are committed — `.env`
 is gitignored and only `.env.example` is tracked.
+
+**This slice gets a database to itself.** The database is `scope_briefs`, and
+it holds these tables and nothing else. It used to share a database named
+`scope` with an unrelated project, which left tables here that this slice has
+never heard of — so checking the schema against that database always reported
+differences that had nothing to do with the work, and there was no way to tell
+a real problem from someone else's. Owning the whole database means a
+from-scratch migration replay is the only comparison needed, and anything it
+reports is genuinely ours.
 
 ## Section 3: The Flow, Step By Step
 

@@ -1,10 +1,15 @@
 /**
- * Read-only inspector for the RLS-protected brief tables.
+ * Read-only inspector for the brief tables.
  *
- * `briefs` and `brief_assets` have `FORCE ROW LEVEL SECURITY`, so anything that
- * connects without setting `app.current_user_id` sees zero rows — including
- * Prisma Studio, which is why a brief you just created looks like it is missing
- * there. The data is fine; it is the policy doing its job.
+ * A brief is only ever shown to the person who owns it, and the database
+ * enforces that on its own. So anything that connects without saying who is
+ * asking — which is what this script does for the demonstration line below —
+ * sees zero briefs. That's on purpose: if the app ever forgot to say who the
+ * user is, the safe answer is "show nothing", not "show everything".
+ *
+ * Prisma Studio is not affected by this. It signs in as the database owner,
+ * which is allowed to see past the rule, so a brief you just created will
+ * still be there.
  *
  * This script reads the same way the application does: it opens a transaction,
  * sets the scope to one user, and reads inside it. It therefore shows exactly
@@ -54,13 +59,14 @@ function bytes(n) {
 async function main() {
   console.log("Brief inspector (read-only)\n");
 
-  // Demonstrate the effect itself, so the empty Studio view is explained
-  // rather than just asserted.
+  // Show the rule working rather than just claiming it does: count with nobody
+  // set, so the number below is zero, then show the same brief again with a
+  // user set, where it comes back.
   const unscoped = await prisma.brief.count();
   console.log(`  briefs visible with NO scope set:  ${unscoped}`);
   console.log(
-    "  (always 0 for a plain connection — FORCE RLS hides every row, which is\n" +
-      "   why Prisma Studio looks empty. The data is not missing.)\n"
+    "  (always 0 — a connection that hasn't said who is asking is shown\n" +
+      "   nothing at all, rather than everything.)\n"
   );
 
   // `User` has no RLS, so accounts can be listed directly.
@@ -95,6 +101,7 @@ async function main() {
       // loaded into this process just to measure them.
       const rows = await tx.$queryRaw`
         SELECT
+          b.id,
           b."publicId",
           b.title,
           b."createdAt"::text AS "createdAt",
@@ -131,9 +138,9 @@ async function main() {
           `\n  ${pad(row.title || "(untitled)", 40)} ` +
             `${row.createdAt.slice(0, 19).replace("T", " ")}`
         );
-        console.log(`    id ${row.publicId}`);
+        console.log(`    public id ${row.publicId}`);
         if (showIds) {
-          console.log(`    (internal id ${row.publicId})`);
+          console.log(`    internal id ${row.id}`);
         }
       }
       if (row.assetPublicId) {
@@ -142,7 +149,7 @@ async function main() {
           `    doc  ${pad(row.fileName, 32)} ${pad(bytes(row.fileSizeBytes), 10)}` +
             ` in-db ${bytes(row.storedBytes)}`
         );
-        console.log(`         id ${row.assetPublicId}`);
+        console.log(`         public id ${row.assetPublicId}`);
       } else {
         console.log("    doc  (none)");
       }
