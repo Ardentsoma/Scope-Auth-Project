@@ -71,15 +71,6 @@ mention `DATABASE_APP_ROLE`; that override is read from the environment but
 has no entry in the example file. No real credentials are committed — `.env`
 is gitignored and only `.env.example` is tracked.
 
-**This slice gets a database to itself.** The database is `scope_briefs`, and
-it holds these tables and nothing else. It used to share a database named
-`scope` with an unrelated project, which left tables here that this slice has
-never heard of — so checking the schema against that database always reported
-differences that had nothing to do with the work, and there was no way to tell
-a real problem from someone else's. Owning the whole database means a
-from-scratch migration replay is the only comparison needed, and anything it
-reports is genuinely ours.
-
 ## Section 3: The Flow, Step By Step
 
 **Creating a brief with files.** The user fills in a title and picks files on
